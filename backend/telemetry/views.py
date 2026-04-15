@@ -133,7 +133,7 @@ class TelemetrySyncView(APIView):
         device.status = "ONLINE"
         device.save(update_fields=["last_synced_at", "status"])
 
-        serializer = TelemetryReadingSerializer(record)
+        serializer = TelemetryReadingDetailSerializer(record)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -169,7 +169,7 @@ class TelemetryLatestView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        serializer = TelemetryReadingSerializer(reading)
+        serializer = TelemetryReadingDetailSerializer(reading)
         return Response(serializer.data)
 
 
