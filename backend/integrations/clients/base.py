@@ -83,7 +83,9 @@ class BaseProviderClient(ABC):
         ...
 
     @abstractmethod
-    def get_realtime_data(self, device_sn: str) -> NormalizedTelemetry:
+    def get_realtime_data(
+        self, device_sn: str, device_id: int | None = None
+    ) -> NormalizedTelemetry:
         """
         Fetch the latest real-time data for a single device.
 

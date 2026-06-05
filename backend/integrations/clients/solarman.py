@@ -72,6 +72,7 @@ class SolarmanClient(BaseProviderClient):
         self.app_secret = (app_secret or getattr(settings, "SOLARMAN_APP_SECRET", "")).strip()
         self.email = (email or getattr(settings, "SOLARMAN_EMAIL", "")).strip()
         self.password = (password or getattr(settings, "SOLARMAN_PASSWORD", "")).strip()
+        self.language = getattr(settings, "SOLARMAN_LANGUAGE", "en").strip() or "en"
         raw_password_hash = (
             password_hash
             or getattr(settings, "SOLARMAN_PASSWORD_HASH", "")
@@ -274,16 +275,25 @@ class SolarmanClient(BaseProviderClient):
             for d in devices_raw
         ]
 
-    def get_realtime_data(self, device_sn: str) -> NormalizedTelemetry:
+    def get_realtime_data(
+        self, device_sn: str, device_id: int | None = None
+    ) -> NormalizedTelemetry:
         """Fetch latest real-time data for a single device."""
+        payload: dict = {"deviceSn": device_sn}
+        if device_id is not None:
+            payload["deviceId"] = device_id
+
         data = self._api_request(
-            "/device/v1.0/currentData", {"deviceSn": device_sn}
+            "/device/v1.0/currentData",
+            payload,
+            query_params={"language": self.language},
         )
 
         flat = self._flatten_data_list(data.get("dataList", []) if isinstance(data, dict) else [])
         flat.update(data if isinstance(data, dict) else {})
 
-        return self._normalize_telemetry(device_sn, flat, data)
+        timestamp = self._parse_collection_time(data.get("collectionTime") if isinstance(data, dict) else None)
+        return self._normalize_telemetry(device_sn, flat, data, timestamp)
 
     def get_realtime_data_batch(
         self, device_sns: list[str]
@@ -406,10 +416,21 @@ class SolarmanClient(BaseProviderClient):
     # Internal — API request infrastructure
     # -------------------------------------------------------------------------
 
-    def _api_request(self, endpoint: str, payload: dict) -> dict:
+    def _api_request(
+        self,
+        endpoint: str,
+        payload: dict,
+        query_params: dict | None = None,
+    ) -> dict:
         """Make an authenticated, HMAC-signed request to Solarman."""
         self.authenticate()
-        return self._raw_request("POST", endpoint, payload, authenticated=True)
+        return self._raw_request(
+            "POST",
+            endpoint,
+            payload,
+            authenticated=True,
+            query_params=query_params,
+        )
 
     def _raw_request(
         self,
@@ -417,6 +438,7 @@ class SolarmanClient(BaseProviderClient):
         endpoint: str,
         payload: dict,
         authenticated: bool = True,
+        query_params: dict | None = None,
     ) -> dict:
         """Low-level HTTP request with HMAC signing."""
         url = f"{self.base_url}{endpoint}"
@@ -439,7 +461,12 @@ class SolarmanClient(BaseProviderClient):
 
         try:
             resp = self._session.request(
-                method, url, data=body_bytes, headers=headers, timeout=self.timeout
+                method,
+                url,
+                params=query_params,
+                data=body_bytes,
+                headers=headers,
+                timeout=self.timeout,
             )
             resp.raise_for_status()
             result = resp.json()
@@ -482,19 +509,19 @@ class SolarmanClient(BaseProviderClient):
             device_sn=device_sn,
             timestamp=timestamp or dj_timezone.now(),
             source="SOLARMAN",
-            power_w=self._safe_float(flat, ["pac", "power", "activePower", "powerW", "Pac_R"]),
-            energy_today_kwh=self._safe_float(flat, ["eToday", "Et_ge0", "todayEnergy", "energyToday"]),
-            energy_total_kwh=self._safe_float(flat, ["eTotal", "Etdy_ge1", "totalEnergy", "energyTotal"]),
+            power_w=self._safe_float(flat, ["pac", "power", "Power", "activePower", "powerW", "Pac_R"]),
+            energy_today_kwh=self._safe_float(flat, ["eToday", "today", "Today", "Et_ge0", "todayEnergy", "energyToday"]),
+            energy_total_kwh=self._safe_float(flat, ["eTotal", "total", "Total", "Etdy_ge1", "totalEnergy", "energyTotal"]),
             battery_soc=self._safe_float(flat, ["SOC", "soc", "batterySoc", "batterySOC", "B_left1"]),
-            battery_power_w=self._safe_float(flat, ["batteryPower", "batPower", "Pb_Sum"]),
-            grid_power_w=self._safe_float(flat, ["gridPower", "pGrid", "PG_Pt1"]),
-            load_power_w=self._safe_float(flat, ["loadPower", "pLoad", "CT_Pt1"]),
-            pv1_power_w=self._safe_float(flat, ["pv1Power", "DPi_t1"]),
-            pv2_power_w=self._safe_float(flat, ["pv2Power", "DPi_t2"]),
+            battery_power_w=self._safe_float(flat, ["batteryPower", "batPower", "Pb_Sum", "Power"]),
+            grid_power_w=self._safe_float(flat, ["gridPower", "pGrid", "PG_Pt1", "Grid Tie Power"]),
+            load_power_w=self._safe_float(flat, ["loadPower", "pLoad", "CT_Pt1", "Load Power"]),
+            pv1_power_w=self._safe_float(flat, ["pv1Power", "DPi_t1", "P1"]),
+            pv2_power_w=self._safe_float(flat, ["pv2Power", "DPi_t2", "P2"]),
             pv_total_power_w=self._safe_float(flat, ["pvPower", "solarPower", "Ppv_T"]),
-            voltage_ac=self._safe_float(flat, ["gridVoltage", "acVoltage", "vac", "AV1"]),
+            voltage_ac=self._safe_float(flat, ["gridVoltage", "acVoltage", "vac", "AV1", "L"]),
             frequency_hz=self._safe_float(flat, ["gridFrequency", "frequency", "fac", "PG_F1"]),
-            temperature_c=self._safe_float(flat, ["temperature", "inverterTemp", "INV_T0"]),
+            temperature_c=self._safe_float(flat, ["temperature", "inverterTemp", "INV_T0", "Temp"]),
             raw_response=raw if isinstance(raw, dict) else {},
         )
 
@@ -507,9 +534,18 @@ class SolarmanClient(BaseProviderClient):
         flat: dict = {}
         for item in data_list:
             key = item.get("key") or item.get("name", "")
+            name = item.get("name", "")
             value = item.get("value")
             if key and value is not None:
                 flat[key] = value
+                lower_key = str(key).strip().lower()
+                if lower_key and lower_key not in flat:
+                    flat[lower_key] = value
+            if name and value is not None:
+                flat[name] = value
+                lower_name = str(name).strip().lower()
+                if lower_name and lower_name not in flat:
+                    flat[lower_name] = value
         return flat
 
     @staticmethod
@@ -522,6 +558,17 @@ class SolarmanClient(BaseProviderClient):
             sign_target.encode("utf-8"),
             hashlib.sha256,
         ).hexdigest()
+
+    @staticmethod
+    def _parse_collection_time(value: object) -> datetime | None:
+        """Convert Solarman collectionTime to an aware datetime if possible."""
+        try:
+            if value is None:
+                return None
+            timestamp = int(value)
+            return datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        except (TypeError, ValueError, OSError):
+            return None
 
     @staticmethod
     def _map_severity(level: int | str) -> str:

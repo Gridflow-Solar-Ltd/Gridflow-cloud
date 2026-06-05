@@ -172,7 +172,9 @@ class DeyeCloudClient(BaseProviderClient):
             for d in devices_raw
         ]
 
-    def get_realtime_data(self, device_sn: str) -> NormalizedTelemetry:
+    def get_realtime_data(
+        self, device_sn: str, device_id: int | None = None
+    ) -> NormalizedTelemetry:
         """Fetch latest data for a single device."""
         results = self.get_realtime_data_batch([device_sn])
         if not results:

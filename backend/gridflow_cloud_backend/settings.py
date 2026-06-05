@@ -42,7 +42,9 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     # Third-party
+    "corsheaders",
     "rest_framework",
+    "rest_framework.authtoken",
     "django_celery_beat",
     # Local
     "users",
@@ -53,6 +55,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -87,8 +90,8 @@ WSGI_APPLICATION = "gridflow_cloud_backend.wsgi.application"
 DATABASES = {
     "default": env.db(
         "DATABASE_URL",
-        default="postgresql://gridflow:gridflow@localhost:5432/gridflow",
-    ),
+        default="sqlite:///db.sqlite3",
+    )
 }
 
 # ---------------------------------------------------------------------------
@@ -157,6 +160,14 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 50,
 }
 
+# CORS - development-friendly settings
+# For production, restrict origins appropriately.
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
+CORS_ALLOW_CREDENTIALS = True
+
 # ---------------------------------------------------------------------------
 # Solar API Provider Defaults (platform-wide credentials)
 # ---------------------------------------------------------------------------
@@ -172,6 +183,7 @@ SOLARMAN_APP_SECRET = env("SOLARMAN_APP_SECRET", default="")
 SOLARMAN_EMAIL = env("SOLARMAN_EMAIL", default="")
 SOLARMAN_PASSWORD = env("SOLARMAN_PASSWORD", default="")
 SOLARMAN_PASSWORD_HASH = env("SOLARMAN_PASSWORD_HASH", default="")
+SOLARMAN_LANGUAGE = env("SOLARMAN_LANGUAGE", default="en")
 # ---------------------------------------------------------------------------
 # Push Notifications (Firebase Cloud Messaging)
 # ---------------------------------------------------------------------------

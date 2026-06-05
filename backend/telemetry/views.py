@@ -31,6 +31,14 @@ from .serializers import (
 )
 
 
+def _parse_provider_device_id(value: str | int | None) -> int | None:
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError, AttributeError):
+        return None
+    return parsed if parsed > 0 else None
+
+
 class TelemetryListView(ListAPIView):
     """
     GET /api/devices/<device_id>/telemetry/
@@ -101,7 +109,10 @@ class TelemetrySyncView(APIView):
 
         try:
             client = get_client(device.data_source)
-            reading = client.get_realtime_data(device.serial_number)
+            reading = client.get_realtime_data(
+                device.serial_number,
+                _parse_provider_device_id(device.provider_device_id),
+            )
         except ProviderClientError as exc:
             return Response(
                 {"detail": f"Sync failed: {exc}"},

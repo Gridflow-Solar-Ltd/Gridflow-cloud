@@ -25,6 +25,17 @@ from telemetry.models import DeviceAlert, NotificationLog, TelemetryReading
 logger = logging.getLogger(__name__)
 
 
+def _parse_provider_device_id(value: str | int | None) -> int | None:
+    """Return a numeric provider device id when available."""
+    if value is None:
+        return None
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
 # ---------------------------------------------------------------------------
 # Telemetry sync
 # ---------------------------------------------------------------------------
@@ -98,7 +109,10 @@ def _sync_batch(data_source: str, devices: list[Device]) -> tuple[int, int]:
             # Solarman: one-by-one
             for device in devices:
                 try:
-                    reading = client.get_realtime_data(device.serial_number)
+                    reading = client.get_realtime_data(
+                        device.serial_number,
+                        _parse_provider_device_id(device.provider_device_id),
+                    )
                     _store_telemetry(device, reading)
                     synced += 1
                 except ProviderClientError as exc:
@@ -195,7 +209,10 @@ def sync_single_device(self, device_id: int):
 
     try:
         client = get_client(device.data_source)
-        reading = client.get_realtime_data(device.serial_number)
+        reading = client.get_realtime_data(
+            device.serial_number,
+            _parse_provider_device_id(device.provider_device_id),
+        )
         record = _store_telemetry(device, reading)
         return f"Synced device {device.serial_number}: telemetry_id={record.id}"
     except ProviderClientError as exc:

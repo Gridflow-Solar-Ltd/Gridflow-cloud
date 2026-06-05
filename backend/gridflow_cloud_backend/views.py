@@ -8,6 +8,13 @@ from django.utils import timezone
 from devices.models import Device
 from telemetry.models import DeviceAlert, TelemetryReading
 from telemetry.serializers import TelemetryReadingDetailSerializer
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.authtoken.models import Token
+from django.contrib.auth import get_user_model
+from users.serializers import UserSerializer
+import json
+from organizations.models import Organization
 
 
 def _mask_value(value: str, visible: int = 3) -> str:
@@ -86,3 +93,41 @@ def dashboard_view(request):
         "telemetry_rows": telemetry_rows,
     }
     return render(request, "dashboard/index.html", context)
+
+
+@csrf_exempt
+def register_view(request):
+    """Simple registration endpoint for MVP that returns an auth token.
+
+    Expects JSON: {"username": "...", "password": "...", "email": "..."}
+    Returns: {"token": "...", "user": { ... }}
+    """
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        return JsonResponse({"detail": "Invalid JSON"}, status=400)
+
+    # default role for self-registered users
+    if 'role' not in payload:
+        payload['role'] = 'OWNER'
+
+    # If the client passes an organization_name (register as org), create it
+    org_name = payload.pop('organization_name', None)
+    if org_name:
+        org_type = payload.pop('org_type', 'HOUSEHOLD')
+        org = Organization.objects.create(name=org_name, org_type=org_type)
+        # attach the created org id to payload so the UserSerializer links it
+        payload['organization'] = org.id
+
+    serializer = UserSerializer(data=payload)
+    if not serializer.is_valid():
+        return JsonResponse(serializer.errors, status=400)
+
+    user = serializer.save()
+    token, _ = Token.objects.get_or_create(user=user)
+
+    user_data = UserSerializer(user).data
+    return JsonResponse({"token": token.key, "user": user_data})

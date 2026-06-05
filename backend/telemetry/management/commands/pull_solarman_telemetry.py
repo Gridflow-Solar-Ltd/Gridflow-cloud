@@ -8,6 +8,14 @@ from integrations.clients import get_client
 from integrations.clients.base import ProviderClientError
 
 
+def _parse_provider_device_id(value: str | int | None) -> int | None:
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError, AttributeError):
+        return None
+    return parsed if parsed > 0 else None
+
+
 class Command(BaseCommand):
     help = "Pull realtime telemetry from cloud API (Deye/Solarman) for a device."
 
@@ -30,7 +38,10 @@ class Command(BaseCommand):
 
         try:
             client = get_client(device.data_source)
-            reading = client.get_realtime_data(device.serial_number)
+            reading = client.get_realtime_data(
+                device.serial_number,
+                _parse_provider_device_id(device.provider_device_id),
+            )
         except ProviderClientError as exc:
             raise CommandError(str(exc)) from exc
 
