@@ -16,20 +16,35 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Environment
 # ---------------------------------------------------------------------------
 env = environ.Env(
-    DJANGO_DEBUG=(bool, True),
+    DJANGO_DEBUG=(bool, False),  # Default to False for security
     DJANGO_ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1"]),
+    ENVIRONMENT=(str, "development"),
 )
 environ.Env.read_env(BASE_DIR / ".env")
+
+# Determine environment
+ENVIRONMENT = env("ENVIRONMENT")
+IS_PRODUCTION = ENVIRONMENT == "production"
 
 # ---------------------------------------------------------------------------
 # Core
 # ---------------------------------------------------------------------------
-SECRET_KEY = env(
-    "DJANGO_SECRET_KEY",
-    default="django-insecure-4rzbuls-j%k*m-&f04o8m#w1f&or4lbm&x+7$s26#b1j9wf3=c",
-)
+# SECRET_KEY: In production, this MUST be set via environment variable
+if IS_PRODUCTION:
+    SECRET_KEY = env("DJANGO_SECRET_KEY")  # Will raise error if not set
+else:
+    SECRET_KEY = env(
+        "DJANGO_SECRET_KEY",
+        default="django-insecure-dev-only-change-in-production",
+    )
+
 DEBUG = env("DJANGO_DEBUG")
-ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
+
+# In production, ensure ALLOWED_HOSTS is properly configured
+if IS_PRODUCTION:
+    ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")  # Must be set in production
+else:
+    ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
 
 # ---------------------------------------------------------------------------
 # Application definition
@@ -87,12 +102,19 @@ WSGI_APPLICATION = "gridflow_cloud_backend.wsgi.application"
 # ---------------------------------------------------------------------------
 # Database — PostgreSQL + TimescaleDB
 # ---------------------------------------------------------------------------
-DATABASES = {
-    "default": env.db(
-        "DATABASE_URL",
-        default="sqlite:///db.sqlite3",
-    )
-}
+if IS_PRODUCTION:
+    # In production, DATABASE_URL must be explicitly set
+    DATABASES = {
+        "default": env.db("DATABASE_URL")
+    }
+else:
+    # In development, fallback to SQLite for convenience
+    DATABASES = {
+        "default": env.db(
+            "DATABASE_URL",
+            default="sqlite:///db.sqlite3",
+        )
+    }
 
 # ---------------------------------------------------------------------------
 # Cache — Redis
@@ -136,7 +158,12 @@ USE_TZ = True
 # ---------------------------------------------------------------------------
 # Static files
 # ---------------------------------------------------------------------------
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Media files configuration
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 # ---------------------------------------------------------------------------
 # Custom user model
@@ -160,17 +187,28 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 50,
 }
 
-# CORS - development-friendly settings
-# For production, restrict origins appropriately.
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-]
+# ---------------------------------------------------------------------------
+# CORS Configuration
+# ---------------------------------------------------------------------------
+if IS_PRODUCTION:
+    # In production, explicitly configure allowed origins
+    CORS_ALLOWED_ORIGINS = env(
+        "CORS_ALLOWED_ORIGINS",
+        default="",
+    ).split(",") if env("CORS_ALLOWED_ORIGINS", default="") else []
+else:
+    # Development-friendly settings
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+    ]
+
 CORS_ALLOW_CREDENTIALS = True
 
 # ---------------------------------------------------------------------------
 # Solar API Provider Defaults (platform-wide credentials)
 # ---------------------------------------------------------------------------
+# Note: In production, all API credentials should be set via environment variables
 DEYE_BASE_URL = env("DEYE_BASE_URL", default="https://eu1-developer.deyecloud.com/v1.0")
 DEYE_APP_ID = env("DEYE_APP_ID", default="")
 DEYE_APP_SECRET = env("DEYE_APP_SECRET", default="")
@@ -184,6 +222,7 @@ SOLARMAN_EMAIL = env("SOLARMAN_EMAIL", default="")
 SOLARMAN_PASSWORD = env("SOLARMAN_PASSWORD", default="")
 SOLARMAN_PASSWORD_HASH = env("SOLARMAN_PASSWORD_HASH", default="")
 SOLARMAN_LANGUAGE = env("SOLARMAN_LANGUAGE", default="en")
+
 # ---------------------------------------------------------------------------
 # Push Notifications (Firebase Cloud Messaging)
 # ---------------------------------------------------------------------------
