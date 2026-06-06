@@ -25,9 +25,7 @@ environ.Env.read_env(BASE_DIR / ".env")
 # Core
 # ---------------------------------------------------------------------------
 SECRET_KEY = env(
-    "DJANGO_SECRET_KEY",
-    default="django-insecure-4rzbuls-j%k*m-&f04o8m#w1f&or4lbm&x+7$s26#b1j9wf3=c",
-)
+    "DJANGO_SECRET_KEY")
 DEBUG = env("DJANGO_DEBUG")
 ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
 
@@ -172,22 +170,22 @@ CORS_ALLOW_CREDENTIALS = True
 # Solar API Provider Defaults (platform-wide credentials)
 # ---------------------------------------------------------------------------
 DEYE_BASE_URL = env("DEYE_BASE_URL", default="https://eu1-developer.deyecloud.com/v1.0")
-DEYE_APP_ID = env("DEYE_APP_ID", default="")
-DEYE_APP_SECRET = env("DEYE_APP_SECRET", default="")
+DEYE_APP_ID = env("DEYE_APP_ID")
+DEYE_APP_SECRET = env("DEYE_APP_SECRET")
 DEYE_EMAIL = env("DEYE_EMAIL", default="")
 DEYE_PASSWORD = env("DEYE_PASSWORD", default="")
 
 SOLARMAN_BASE_URL = env("SOLARMAN_BASE_URL", default="https://api.solarmanpv.com")
-SOLARMAN_APP_ID = env("SOLARMAN_APP_ID", default="")
-SOLARMAN_APP_SECRET = env("SOLARMAN_APP_SECRET", default="")
+SOLARMAN_APP_ID = env("SOLARMAN_APP_ID")
+SOLARMAN_APP_SECRET = env("SOLARMAN_APP_SECRET")
 SOLARMAN_EMAIL = env("SOLARMAN_EMAIL", default="")
 SOLARMAN_PASSWORD = env("SOLARMAN_PASSWORD", default="")
-SOLARMAN_PASSWORD_HASH = env("SOLARMAN_PASSWORD_HASH", default="")
+SOLARMAN_PASSWORD_HASH = env("SOLARMAN_PASSWORD_HASH")
 SOLARMAN_LANGUAGE = env("SOLARMAN_LANGUAGE", default="en")
 # ---------------------------------------------------------------------------
 # Push Notifications (Firebase Cloud Messaging)
 # ---------------------------------------------------------------------------
-FCM_SERVER_KEY = env("FCM_SERVER_KEY", default="")
+FCM_SERVER_KEY = env("FCM_SERVER_KEY")
 
 # ---------------------------------------------------------------------------
 # Telemetry Configuration
